@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🐍 贪吃蛇</title>
+    <style>
+        :root {
+            --bg: #0a0a12;
+            --card-bg: #13141f;
+            --accent: #00e48a;
+            --accent2: #00c6ff;
+            --danger: #ff4757;
+            --gold: #ffc048;
+            --text: #e8e8f0;
+            --text-secondary: #9898b0;
+            --border: #1e1f30;
+            --glow-green: 0 0 30px rgba(0, 228, 138, 0.4);
+            --glow-blue: 0 0 30px rgba(0, 198, 255, 0.35);
+            --glow-gold: 0 0 25px rgba(255, 192, 72, 0.5);
+            --radius: 20px;
+            --radius-sm: 12px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse at 30% 20%, rgba(0, 198, 255, 0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 60%, rgba(0, 228, 138, 0.05) 0%, transparent 60%),
+                radial-gradient(ellipse at 50% 80%, rgba(255, 71, 87, 0.03) 0%, transparent 50%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+            padding: 16px;
+        }
+
+        .game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 520px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow:
+                0 0 0 1px var(--border),
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 80px rgba(0, 198, 255, 0.06);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            transition: box-shadow 0.5s ease;
+        }
+
+        .game-wrapper:hover {
+            box-shadow:
+                0 0 0 1px var(--border),
+                0 20px 70px rgba(0, 0, 0, 0.55),
+                0 0 100px rgba(0, 198, 255, 0.1);
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            max-width: 440px;
+            max-height: 440px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            box-shadow:
+                inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+                0 0 0 3px var(--border),
+                0 8px 32px rgba(0, 0, 0, 0.4);
+            background: #0c0d1a;
+            transition: box-shadow 0.4s ease;
+        }
+
+        .canvas-container.game-active {
+            box-shadow:
+                inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+                0 0 0 3px rgba(0, 228, 138, 0.3),
+                0 8px 40px rgba(0, 228, 138, 0.15),
+                var(--glow-green);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: var(--radius-sm);
+        }
+
+        /* 覆盖层 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            z-index: 10;
+            transition: opacity 0.35s ease, visibility 0.35s ease;
+            overflow: hidden;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .overlay-bg {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 20, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: var(--radius-sm);
+        }
+
+        .overlay-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            text-align: center;
+            padding: 20px 16px;
+            width: 90%;
+            max-width: 360px;
+            max-height: 100%;
+            overflow-y: auto;
+        }
+
+        .game-title {
+            font-size: 2.4em;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            background: linear-gradient(135deg, #00e48a 0%, #00c6ff 50%, #7b5cff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+            line-height: 1.2;
+            filter: drop-shadow(0 2px 8px rgba(0, 228, 138, 0.3));
+        }
+
+        .game-subtitle {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-top: -6px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 36px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.05em;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            outline: none;
+            min-width: 180px;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00e48a 0%, #00c66b 100%);
+            color: #0a0a12;
+            box-shadow: 0 6px 24px rgba(0, 228, 138, 0.3);
+            transform: scale(1);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.12);
+            box-shadow: 0 10px 36px rgba(0, 228, 138, 0.5), 0 0 0 4px rgba(0, 228, 138, 0.15);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.96);
+            transition: all 0.12s ease;
+            box-shadow: 0 4px 14px rgba(0, 228, 138, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            transform: scale(1);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .btn-secondary:hover {
+            transform: scale(1.08);
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3), 0 0 0 4px rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.95);
+            transition: all 0.12s ease;
+        }
+
+        .btn-sm {
+            padding: 10px 20px;
+            font-size: 0.9em;
+            min-width: auto;
+            border-radius: 40px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-family: inherit;
+            outline: none;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transform: scale(1);
+        }
+
+        .btn-sm:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.35);
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-sm:active {
+            transform: scale(0.93);
+            transition: all 0.1s ease;
+        }
+
+        .info-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 440px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .score-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 50px;
+            padding: 10px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all var(--transition);
+        }
+
+        .score-display .score-label {
+            font-size: 0.78em;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .score-display .score-value {
+            font-size: 1.5em;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 0.03em;
+            min-width: 50px;
+            text-align: right;
+            transition: color 0.3s;
+        }
+
+        .score-display .score-value.highlight {
+            color: var(--gold);
+            text-shadow: var(--glow-gold);
+            animation: scorePulse 0.4s ease-out;
+        }
+
+        @keyframes scorePulse {
+            0%,
+            100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.35);
+            }
+        }
+
+        .best-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8em;
+            color: var(--gold);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            background: rgba(255, 192, 72, 0.1);
+            padding: 8px 14px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 192, 72, 0.2);
+        }
+
+        /* 最终得分数字缩小 */
+        #finalScoreDisplay {
+            font-size: 2.8em;
+        }
+
+        .mobile-controls {
+            display: none;
+            width: 100%;
+            max-width: 320px;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .mobile-controls .dpad-row {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .dpad-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 1.3em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            user-select: none;
+            font-family: inherit;
+        }
+
+        .dpad-btn:active {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(0.9);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+        }
+
+        .dpad-placeholder {
+            width: 52px;
+            height: 52px;
+            visibility: hidden;
+        }
+
+        @media (max-width: 600px) {
+            .mobile-controls {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .game-wrapper {
+                padding: 14px;
+                gap: 12px;
+                border-radius: 16px;
+            }
+            .canvas-container {
+                border-radius: 10px;
+                max-width: 100%;
+                max-height: 380px;
+            }
+            .btn {
+                padding: 12px 28px;
+                font-size: 0.95em;
+                min-width: 150px;
+            }
+            .game-title {
+                font-size: 1.8em;
+            }
+            .info-bar {
+                gap: 8px;
+            }
+            .score-display {
+                padding: 8px 14px;
+            }
+            .score-display .score-value {
+                font-size: 1.2em;
+            }
+            #finalScoreDisplay {
+                font-size: 2.2em;
+            }
+        }
+
+        /* 排行榜模态 */
+        .leaderboard-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            padding: 20px;
+        }
+
+        .leaderboard-modal.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .leaderboard-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 28px 24px 20px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .leaderboard-card h3 {
+            text-align: center;
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.04em;
+            margin: 0;
+        }
+
+        .leaderboard-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 0;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all var(--transition);
+        }
+
+        .leaderboard-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .leaderboard-rank {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.9em;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.08);
+            color: #ccc;
+        }
+
+        .leaderboard-rank.rank-1 {
+            background: linear-gradient(135deg, #ffc048, #ff8c00);
+            color: #1a1a1a;
+            box-shadow: 0 0 16px rgba(255, 192, 72, 0.5);
+        }
+
+        .leaderboard-rank.rank-2 {
+            background: linear-gradient(135deg, #c0c0c0, #909090);
+            color: #1a1a1a;
+            box-shadow: 0 0 12px rgba(192, 192, 192, 0.4);
+        }
+
+        .leaderboard-rank.rank-3 {
+            background: linear-gradient(135deg, #cd7f32, #a0522d);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(205, 127, 50, 0.4);
+        }
+
+        .leaderboard-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .leaderboard-name {
+            font-weight: 700;
+            color: #fff;
+            font-size: 0.95em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .leaderboard-date {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+        }
+
+        .leaderboard-score {
+            font-weight: 800;
+            font-size: 1.15em;
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .no-scores {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 24px;
+            font-style: italic;
+            letter-spacing: 0.03em;
+        }
+
+        .input-name {
+            width: 100%;
+            max-width: 240px;
+            padding: 12px 18px;
+            border-radius: 50px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 1em;
+            text-align: center;
+            letter-spacing: 0.04em;
+            outline: none;
+            transition: all var(--transition);
+            font-family: inherit;
+        }
+
+        .input-name:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(0, 228, 138, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .hint-text {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            letter-spacing: 0.04em;
+        }
+
+        .hint-text kbd {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            padding: 2px 8px;
+            font-size: 0.9em;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin: 0 2px;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper" id="gameWrapper">
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="gameCanvas"></canvas>
+
+            <!-- 主菜单覆盖层 -->
+            <div class="overlay" id="menuOverlay">
+                <div class="overlay-bg"></div>
+                <div class="overlay-content">
+                    <h1 class="game-title">贪 吃 蛇</h1>
+                    <p class="game-subtitle">Classic Snake · 经典重制</p>
+                    <button class="btn btn-primary" id="btnStartGame" title="开始游戏">
+                        ▶&ensp;开 始 游 戏
+                    </button>
+                    <button class="btn btn-secondary" id="btnShowLeaderboard" title="查看排行榜">
+                        🏆&ensp;排 行 榜
+                    </button>
+                    <p class="hint-text">按 <kbd>空格键</kbd> 或 <kbd>P</kbd> 暂停游戏</p>
+                </div>
+            </div>
+
+            <!-- 暂停覆盖层 -->
+            <div class="overlay hidden" id="pauseOverlay">
+                <div class="overlay-bg" style="background: rgba(10,10,20,0.6);"></div>
+                <div class="overlay-content">
+                    <span style="font-size:3em;">⏸️</span>
+                    <h2 style="color:#fff;margin:0;letter-spacing:0.06em;font-weight:700;">游 戏 暂 停</h2>
+                    <button class="btn btn-primary" id="btnResume" style="min-width:160px;">
+                        ▶&ensp;继 续
+                    </button>
+                    <button class="btn btn-secondary" id="btnQuitToMenu" style="min-width:160px;">
+                        🏠&ensp;返回主菜单
+                    </button>
+                </div>
+            </div>
+
+            <!-- 游戏结束覆盖层 -->
+            <div class="overlay hidden" id="gameOverOverlay">
+                <div class="overlay-bg" style="background: rgba(10,10,20,0.78);"></div>
+                <div class="overlay-content" id="gameOverContent">
+                    <span style="font-size:3em;">💀</span>
+                    <h2 style="color:#ff4757;margin:0;letter-spacing:0.06em;font-weight:700;">游 戏 结 束</h2>
+                    <p style="color:#fff;font-size:1.1em;margin:0;">最终得分</p>
+                    <span id="finalScoreDisplay" style="font-weight:900;color:var(--gold);letter-spacing:0.04em;text-shadow:var(--glow-gold);">0</span>
+                    <div id="newHighscoreBadge" style="display:none;background:linear-gradient(135deg,#ffc048,#ff6b35);color:#1a1a1a;padding:6px 16px;border-radius:50px;font-weight:700;letter-spacing:0.04em;animation:scorePulse 0.6s ease-out;">
+                        🎉 新纪录！
+                    </div>
+                    <input type="text" class="input-name" id="inputPlayerName" placeholder="输入你的名字（可选）" maxlength="15">
+                    <button class="btn btn-primary" id="btnSaveScore">
+                        💾&ensp;保 存 分 数
+                    </button>
+                    <button class="btn btn-secondary" id="btnRestart">
+                        🔄&ensp;再 来 一 局
+                    </button>
+                    <button class="btn btn-secondary" id="btnGoMenu">
+                        🏠&ensp;返回主菜单
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 信息栏 -->
+        <div class="info-bar" id="infoBar" style="display:none;">
+            <div class="score-display">
+                <span class="score-label">得分</span>
+                <span class="score-value" id="scoreValue">0</span>
+            </div>
+            <div class="best-badge" id="bestBadge">
+                👑 <span id="bestScoreValue">0</span>
+            </div>
+            <button class="btn-sm" id="btnPause" title="暂停 (空格键)">
+                ⏸ 暂停
+            </button>
+        </div>
+
+        <!-- 移动端方向键 -->
+        <div class="mobile-controls" id="mobileControls" style="display:none;">
+            <div class="dpad-row">
+                <div class="dpad-placeholder"></div>
+                <button class="dpad-btn" id="dpadUp">▲</button>
+                <div class="dpad-placeholder"></div>
+            </div>
+            <div class="dpad-row">
+                <button class="dpad-btn" id="dpadLeft">◀</button>
+                <button class="dpad-btn" id="dpadDown">▼</button>
+                <button class="dpad-btn" id="dpadRight">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 排行榜模态 -->
+    <div class="leaderboard-modal hidden" id="leaderboardModal">
+        <div class="leaderboard-card">
+            <h3>🏆 排行榜</h3>
+            <ul class="leaderboard-list" id="leaderboardList">
+                <li class="no-scores">暂无记录，快来挑战吧！</li>
+            </ul>
+            <button class="btn btn-secondary" id="btnCloseLeaderboard" style="align-self:center;min-width:140px;">
+                ✕&ensp;关 闭
+            </button>
+            <button class="btn btn-sm" id="btnClearLeaderboard" style="align-self:center;background:transparent;color:var(--danger);border-color:rgba(255,71,87,0.3);font-size:0.75em;">
+                🗑 清除记录
+            </button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const canvasContainer = document.getElementById('canvasContainer');
+            const infoBar = document.getElementById('infoBar');
+            const mobileControls = document.getElementById('mobileControls');
+
+            const menuOverlay = document.getElementById('menuOverlay');
+            const pauseOverlay = document.getElementById('pauseOverlay');
+            const gameOverOverlay = document.getElementById('gameOverOverlay');
+
+            const btnStartGame = document.getElementById('btnStartGame');
+            const btnShowLeaderboard = document.getElementById('btnShowLeaderboard');
+            const btnResume = document.getElementById('btnResume');
+            const btnQuitToMenu = document.getElementById('btnQuitToMenu');
+            const btnPause = document.getElementById('btnPause');
+            const btnSaveScore = document.getElementById('btnSaveScore');
+            const btnRestart = document.getElementById('btnRestart');
+            const btnGoMenu = document.getElementById('btnGoMenu');
+            const btnCloseLeaderboard = document.getElementById('btnCloseLeaderboard');
+            const btnClearLeaderboard = document.getElementById('btnClearLeaderboard');
+
+            const scoreValueEl = document.getElementById('scoreValue');
+            const bestScoreValueEl = document.getElementById('bestScoreValue');
+            const finalScoreDisplay = document.getElementById('finalScoreDisplay');
+            const inputPlayerName = document.getElementById('inputPlayerName');
+            const newHighscoreBadge = document.getElementById('newHighscoreBadge');
+            const leaderboardModal = document.getElementById('leaderboardModal');
+            const leaderboardList = document.getElementById('leaderboardList');
+
+            const dpadUp = document.getElementById('dpadUp');
+            const dpadDown = document.getElementById('dpadDown');
+            const dpadLeft = document.getElementById('dpadLeft');
+            const dpadRight = document.getElementById('dpadRight');
+
+            const GRID_SIZE = 20;
+            let COLS, ROWS;
+            const BASE_SPEED = 120;
+            const MIN_SPEED = 60;
+            const SPEED_STEP = 3;
+
+            let snake = [];
+            let food = null;
+            let direction = { x: 1, y: 0 };
+            let nextDirection = { x: 1, y: 0 };
+            let score = 0;
+            let gameSpeed = BASE_SPEED;
+            let gameRunning = false;
+            let gamePaused = false;
+            let gameOver = false;
+            let lastMoveTime = 0;
+            let accumulatedTime = 0;
+            let isNewHighscore = false;
+            let particles = [];
+            let foodPulseTime = 0;
+            let animFrameId = null;
+
+            function resizeCanvas() {
+                const containerWidth = canvasContainer.clientWidth;
+                const containerHeight = canvasContainer.clientHeight;
+                const size = Math.min(containerWidth, containerHeight);
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                const pixelSize = Math.floor(size * dpr);
+                canvas.width = pixelSize;
+                canvas.height = pixelSize;
+                canvas.style.width = size + 'px';
+                canvas.style.height = size + 'px';
+                COLS = Math.floor(pixelSize / GRID_SIZE);
+                ROWS = Math.floor(pixelSize / GRID_SIZE);
+                const adjustedGridW = pixelSize / COLS;
+                const adjustedGridH = pixelSize / ROWS;
+                return {
+                    width: pixelSize,
+                    height: pixelSize,
+                    gridW: adjustedGridW,
+                    gridH: adjustedGridH,
+                    cols: COLS,
+                    rows: ROWS
+                };
+            }
+
+            let canvasMetrics = { width: 400, height: 400, gridW: 20, gridH: 20, cols: 20, rows: 20 };
+
+            function updateCanvasMetrics() {
+                canvasMetrics = resizeCanvas();
+            }
+
+            function initGame() {
+                updateCanvasMetrics();
+                const { cols, rows } = canvasMetrics;
+                const startX = Math.floor(cols / 4);
+                const startY = Math.floor(rows / 2);
+                snake = [
+                    { x: startX, y: startY },
+                    { x: startX - 1, y: startY },
+                    { x: startX - 2, y: startY },
+                ];
+                direction = { x: 1, y: 0 };
+                nextDirection = { x: 1, y: 0 };
+                score = 0;
+                gameSpeed = BASE_SPEED;
+                gameRunning = true;
+                gamePaused = false;
+                gameOver = false;
+                lastMoveTime = performance.now();
+                accumulatedTime = 0;
+                isNewHighscore = false;
+                particles = [];
+                foodPulseTime = 0;
+                spawnFood();
+                updateScoreDisplay();
+                updateBestDisplay();
+                scoreValueEl.classList.remove('highlight');
+                newHighscoreBadge.style.display = 'none';
+                inputPlayerName.value = '';
+                finalScoreDisplay.textContent = '0';
+            }
+
+            function spawnFood() {
+                const { cols, rows } = canvasMetrics;
+                const snakeSet = new Set(snake.map(s => `${s.x},${s.y}`));
+                const available = [];
+                for (let x = 0; x < cols; x++) {
+                    for (let y = 0; y < rows; y++) {
+                        if (!snakeSet.has(`${x},${y}`)) {
+                            available.push({ x, y });
+                        }
+                    }
+                }
+                if (available.length === 0) {
+                    food = null;
+                    endGame(true);
+                    return;
+                }
+                const idx = Math.floor(Math.random() * available.length);
+                food = available[idx];
+            }
+
+            function updateScoreDisplay() {
+                scoreValueEl.textContent = score;
+                const best = getBestScore();
+                bestScoreValueEl.textContent = best;
+                if (score > best && best > 0) {
+                    isNewHighscore = true;
+                }
+            }
+
+            function updateBestDisplay() {
+                const best = getBestScore();
+                bestScoreValueEl.textContent = best;
+            }
+
+            function flashScore() {
+                scoreValueEl.classList.add('highlight');
+                setTimeout(() => scoreValueEl.classList.remove('highlight'), 400);
+            }
+
+            function gameLoop(timestamp) {
+                if (!gameRunning && !gameOver && particles.length === 0) {
+                    animFrameId = requestAnimationFrame(gameLoop);
+                    render(timestamp);
+                    return;
+                }
+                if (!gameRunning && particles.length === 0 && gameOver) {
+                    render(timestamp);
+                    animFrameId = requestAnimationFrame(gameLoop);
+                    return;
+                }
+                if (gameRunning && !gamePaused && !gameOver) {
+                    const dt = timestamp - lastMoveTime;
+                    lastMoveTime = timestamp;
+                    accumulatedTime += dt;
+                    while (accumulatedTime >= gameSpeed) {
+                        accumulatedTime -= gameSpeed;
+                        moveSnake();
+                        if (gameOver) break;
+                    }
+                } else {
+                    lastMoveTime = timestamp;
+                    accumulatedTime = 0;
+                }
+                updateParticles(timestamp);
+                if (food) {
+                    foodPulseTime = timestamp;
+                }
+                render(timestamp);
+                animFrameId = requestAnimationFrame(gameLoop);
+            }
+
+            function moveSnake() {
+                direction = { ...nextDirection };
+                const head = snake[0];
+                const newHead = { x: head.x + direction.x, y: head.y + direction.y };
+                const { cols, rows } = canvasMetrics;
+
+                if (newHead.x < 0 || newHead.x >= cols || newHead.y < 0 || newHead.y >= rows) {
+                    endGame(false);
+                    return;
+                }
+                for (let i = 0; i < snake.length; i++) {
+                    if (snake[i].x === newHead.x && snake[i].y === newHead.y) {
+                        endGame(false);
+                        return;
+                    }
+                }
+                snake.unshift(newHead);
+                if (food && newHead.x === food.x && newHead.y === food.y) {
+                    score += 10;
+                    flashScore();
+                    spawnParticles(food.x, food.y, canvasMetrics.gridW, canvasMetrics.gridH);
+                    spawnFood();
+                    updateScoreDisplay();
+                    gameSpeed = Math.max(MIN_SPEED, BASE_SPEED - Math.floor(score / 10) * SPEED_STEP);
+                } else {
+                    snake.pop();
+                }
+            }
+
+            function endGame(fullGrid) {
+                gameRunning = false;
+                gameOver = true;
+                gamePaused = false;
+                finalScoreDisplay.textContent = score;
+                updateBestDisplay();
+                if (isNewHighscore || score > getBestScore()) {
+                    newHighscoreBadge.style.display = 'inline-block';
+                    isNewHighscore = true;
+                } else {
+                    newHighscoreBadge.style.display = 'none';
+                }
+                gameOverOverlay.classList.remove('hidden');
+                infoBar.style.display = 'none';
+                mobileControls.style.display = 'none';
+                canvasContainer.classList.remove('game-active');
+                inputPlayerName.focus();
+            }
+
+            function spawnParticles(gridX, gridY, gridW, gridH) {
+                const centerX = gridX * gridW + gridW / 2;
+                const centerY = gridY * gridH + gridH / 2;
+                const count = 14;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.4;
+                    const speed = 1.5 + Math.random() * 4;
+                    particles.push({
+                        x: centerX,
+                        y: centerY,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 1,
+                        decay: 0.025 + Math.random() * 0.04,
+                        size: 2 + Math.random() * 4,
+                        hue: Math.random() < 0.5 ? 46 : 30,
+                    });
+                }
+            }
+
+            function updateParticles(timestamp) {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= p.decay;
+                    p.vx *= 0.98;
+                    p.vy *= 0.98;
+                    if (p.life <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+            function render(timestamp) {
+                const { width, height, gridW, gridH, cols, rows } = canvasMetrics;
+                ctx.clearRect(0, 0, width, height);
+                ctx.fillStyle = '#0c0d1a';
+                ctx.fillRect(0, 0, width, height);
+                ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+                ctx.lineWidth = 0.5;
+                for (let x = 0; x <= cols; x++) {
+                    const px = x * gridW;
+                    ctx.beginPath();
+                    ctx.moveTo(px, 0);
+                    ctx.lineTo(px, height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y <= rows; y++) {
+                    const py = y * gridH;
+                    ctx.beginPath();
+                    ctx.moveTo(0, py);
+                    ctx.lineTo(width, py);
+                    ctx.stroke();
+                }
+                if (food) {
+                    const fx = food.x * gridW + gridW / 2;
+                    const fy = food.y * gridH + gridH / 2;
+                    const pulse = 1 + Math.sin(timestamp / 180) * 0.18;
+                    const baseRadius = Math.min(gridW, gridH) * 0.38;
+                    const radius = baseRadius * pulse;
+                    const glowGrad = ctx.createRadialGradient(fx, fy, radius * 0.4, fx, fy, radius * 2.6);
+                    glowGrad.addColorStop(0, 'rgba(255,90,60,0.7)');
+                    glowGrad.addColorStop(0.4, 'rgba(255,60,40,0.3)');
+                    glowGrad.addColorStop(0.7, 'rgba(255,140,30,0.08)');
+                    glowGrad.addColorStop(1, 'rgba(255,60,30,0)');
+                    ctx.fillStyle = glowGrad;
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, radius * 2.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    const bodyGrad = ctx.createRadialGradient(fx - radius * 0.25, fy - radius * 0.3, radius * 0.1, fx, fy, radius);
+                    bodyGrad.addColorStop(0, '#ffcc80');
+                    bodyGrad.addColorStop(0.35, '#ff7043');
+                    bodyGrad.addColorStop(0.7, '#e64a19');
+                    bodyGrad.addColorStop(1, '#bf360c');
+                    ctx.fillStyle = bodyGrad;
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                    ctx.beginPath();
+                    ctx.arc(fx - radius * 0.3, fy - radius * 0.35, radius * 0.28, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (snake.length > 0) {
+                    const segW = gridW * 0.88;
+                    const segH = gridH * 0.88;
+                    const cornerR = Math.min(gridW, gridH) * 0.35;
+                    for (let i = snake.length - 1; i >= 0; i--) {
+                        const seg = snake[i];
+                        const sx = seg.x * gridW + (gridW - segW) / 2;
+                        const sy = seg.y * gridH + (gridH - segH) / 2;
+                        const t = snake.length > 1 ? i / (snake.length - 1) : 1;
+                        const r = Math.floor(0 + t * 30);
+                        const g = Math.floor(200 + t * 40);
+                        const b = Math.floor(180 + t * 60);
+                        const alpha = 0.85 + t * 0.15;
+                        if (i === 0) {
+                            const headW = gridW * 0.94;
+                            const headH = gridH * 0.94;
+                            const hx = seg.x * gridW + (gridW - headW) / 2;
+                            const hy = seg.y * gridH + (gridH - headH) / 2;
+                            const headR = Math.min(gridW, gridH) * 0.4;
+                            ctx.shadowColor = 'rgba(0,228,200,0.5)';
+                            ctx.shadowBlur = 12;
+                            const headGrad = ctx.createLinearGradient(hx, hy, hx + headW, hy + headH);
+                            headGrad.addColorStop(0, '#00ffe0');
+                            headGrad.addColorStop(0.5, '#00d4b8');
+                            headGrad.addColorStop(1, '#009e8a');
+                            ctx.fillStyle = headGrad;
+                            ctx.beginPath();
+                            ctx.roundRect(hx, hy, headW, headH, headR);
+                            ctx.fill();
+                            ctx.shadowColor = 'transparent';
+                            ctx.shadowBlur = 0;
+                            const eyeR = headR * 0.38;
+                            let eye1X, eye1Y, eye2X, eye2Y;
+                            const cx = hx + headW / 2;
+                            const cy = hy + headH / 2;
+                            if (direction.x === 1) {
+                                eye1X = cx + headW * 0.22;
+                                eye1Y = cy - headH * 0.2;
+                                eye2X = cx + headW * 0.22;
+                                eye2Y = cy + headH * 0.2;
+                            } else if (direction.x === -1) {
+                                eye1X = cx - headW * 0.22;
+                                eye1Y = cy - headH * 0.2;
+                                eye2X = cx - headW * 0.22;
+                                eye2Y = cy + headH * 0.2;
+                            } else if (direction.y === -1) {
+                                eye1X = cx - headW * 0.2;
+                                eye1Y = cy - headH * 0.22;
+                                eye2X = cx + headW * 0.2;
+                                eye2Y = cy - headH * 0.22;
+                            } else {
+                                eye1X = cx - headW * 0.2;
+                                eye1Y = cy + headH * 0.22;
+                                eye2X = cx + headW * 0.2;
+                                eye2Y = cy + headH * 0.22;
+                            }
+                            ctx.fillStyle = '#fff';
+                            ctx.beginPath();
+                            ctx.arc(eye1X, eye1Y, eyeR, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.beginPath();
+                            ctx.arc(eye2X, eye2Y, eyeR, 0, Math.PI * 2);
+                            ctx.fill();
+                            const pupilR = eyeR * 0.55;
+                            ctx.fillStyle = '#0a0a12';
+                            ctx.beginPath();
+                            ctx.arc(eye1X + direction.x * pupilR * 0.5, eye1Y + direction.y * pupilR * 0.5, pupilR, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.beginPath();
+                            ctx.arc(eye2X + direction.x * pupilR * 0.5, eye2Y + direction.y * pupilR * 0.5, pupilR, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else {
+                            const bodyGrad = ctx.createLinearGradient(sx, sy, sx + segW, sy + segH);
+                            const midT = t;
+                            bodyGrad.addColorStop(0, `rgba(${Math.floor(20+midT*40)},${Math.floor(190+midT*50)},${Math.floor(200-midT*30)},${alpha})`);
+                            bodyGrad.addColorStop(0.5, `rgba(${Math.floor(15+midT*35)},${Math.floor(170+midT*45)},${Math.floor(185-midT*25)},${alpha})`);
+                            bodyGrad.addColorStop(1, `rgba(${Math.floor(10+midT*30)},${Math.floor(150+midT*40)},${Math.floor(170-midT*20)},${alpha})`);
+                            ctx.fillStyle = bodyGrad;
+                            ctx.beginPath();
+                            ctx.roundRect(sx, sy, segW, segH, cornerR);
+                            ctx.fill();
+                            ctx.fillStyle = `rgba(255,255,255,${0.04+midT*0.06})`;
+                            ctx.beginPath();
+                            ctx.roundRect(sx + segW * 0.2, sy + segH * 0.1, segW * 0.35, segH * 0.4, cornerR * 0.6);
+                            ctx.fill();
+                        }
+                    }
+                }
+                for (const p of particles) {
+                    const alpha = p.life;
+                    ctx.fillStyle = `hsla(${p.hue}, 90%, 55%, ${alpha})`;
+                    ctx.shadowColor = `hsla(${p.hue}, 100%, 55%, ${alpha*0.6})`;
+                    ctx.shadowBlur = 4;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+            }
+
+            function pauseGame() {
+                if (!gameRunning || gameOver) return;
+                gamePaused = true;
+                accumulatedTime = 0;
+                lastMoveTime = performance.now();
+                pauseOverlay.classList.remove('hidden');
+                infoBar.style.display = 'none';
+                mobileControls.style.display = 'none';
+                canvasContainer.classList.remove('game-active');
+            }
+
+            function resumeGame() {
+                if (!gameRunning || gameOver) return;
+                gamePaused = false;
+                lastMoveTime = performance.now();
+                accumulatedTime = 0;
+                pauseOverlay.classList.add('hidden');
+                infoBar.style.display = 'flex';
+                if (isMobileDevice()) {
+                    mobileControls.style.display = 'flex';
+                }
+                canvasContainer.classList.add('game-active');
+            }
+
+            function togglePause() {
+                if (gameOver || !gameRunning) return;
+                if (gamePaused) {
+                    resumeGame();
+                } else {
+                    pauseGame();
+                }
+            }
+
+            function startGame() {
+                initGame();
+                menuOverlay.classList.add('hidden');
+                pauseOverlay.classList.add('hidden');
+                gameOverOverlay.classList.add('hidden');
+                infoBar.style.display = 'flex';
+                if (isMobileDevice()) {
+                    mobileControls.style.display = 'flex';
+                }
+                canvasContainer.classList.add('game-active');
+                lastMoveTime = performance.now();
+                accumulatedTime = 0;
+                updateBestDisplay();
+                if (!animFrameId || animFrameId <= 0) {
+                    animFrameId = requestAnimationFrame(gameLoop);
+                }
+                if (animFrameId) {
+                    lastMoveTime = performance.now();
+                }
+            }
+
+            function quitToMenu() {
+                gameRunning = false;
+                gamePaused = false;
+                gameOver = false;
+                particles = [];
+                snake = [];
+                food = null;
+                score = 0;
+                menuOverlay.classList.remove('hidden');
+                pauseOverlay.classList.add('hidden');
+                gameOverOverlay.classList.add('hidden');
+                infoBar.style.display = 'none';
+                mobileControls.style.display = 'none';
+                canvasContainer.classList.remove('game-active');
+                updateBestDisplay();
+                scoreValueEl.textContent = '0';
+                scoreValueEl.classList.remove('highlight');
+                if (!animFrameId) {
+                    animFrameId = requestAnimationFrame(gameLoop);
+                }
+            }
+
+            const LEADERBOARD_KEY = 'snake_game_leaderboard_v2';
+
+            function getLeaderboard() {
+                try {
+                    const data = localStorage.getItem(LEADERBOARD_KEY);
+                    return data ? JSON.parse(data) : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function saveToLeaderboard(name, score) {
+                const board = getLeaderboard();
+                const entry = {
+                    name: name || '匿名玩家',
+                    score: score,
+                    date: new Date().toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                };
+                board.push(entry);
+                board.sort((a, b) => b.score - a.score);
+                const trimmed = board.slice(0, 20);
+                localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(trimmed));
+                return trimmed;
+            }
+
+            function getBestScore() {
+                const board = getLeaderboard();
+                if (board.length === 0) return 0;
+                return board[0].score;
+            }
+
+            function renderLeaderboard() {
+                const board = getLeaderboard();
+                leaderboardList.innerHTML = '';
+                if (board.length === 0) {
+                    leaderboardList.innerHTML = '<li class="no-scores">暂无记录，快来挑战吧！</li>';
+                } else {
+                    const top10 = board.slice(0, 10);
+                    top10.forEach((entry, index) => {
+                        const li = document.createElement('li');
+                        li.className = 'leaderboard-item';
+                        let rankClass = '';
+                        if (index === 0) rankClass = 'rank-1';
+                        else if (index === 1) rankClass = 'rank-2';
+                        else if (index === 2) rankClass = 'rank-3';
+                        li.innerHTML = `
+                            <span class="leaderboard-rank ${rankClass}">${index+1}</span>
+                            <div class="leaderboard-info">
+                                <span class="leaderboard-name">${escapeHTML(entry.name)}</span>
+                                <span class="leaderboard-date">${entry.date}</span>
+                            </div>
+                            <span class="leaderboard-score">${entry.score}</span>
+                        `;
+                        leaderboardList.appendChild(li);
+                    });
+                }
+            }
+
+            function escapeHTML(str) {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+
+            function showLeaderboard() {
+                renderLeaderboard();
+                leaderboardModal.classList.remove('hidden');
+            }
+
+            function hideLeaderboard() {
+                leaderboardModal.classList.add('hidden');
+            }
+
+            function clearLeaderboard() {
+                if (confirm('确定要清除所有排行榜记录吗？此操作不可撤销。')) {
+                    localStorage.removeItem(LEADERBOARD_KEY);
+                    renderLeaderboard();
+                    updateBestDisplay();
+                    bestScoreValueEl.textContent = '0';
+                }
+            }
+
+            function saveCurrentScore() {
+                const name = inputPlayerName.value.trim() || '匿名玩家';
+                saveToLeaderboard(name, score);
+                updateBestDisplay();
+                btnSaveScore.textContent = '✅ 已保存！';
+                btnSaveScore.style.background = 'linear-gradient(135deg, #ffc048, #ff8c00)';
+                setTimeout(() => {
+                    btnSaveScore.textContent = '💾 保 存 分 数';
+                    btnSaveScore.style.background = '';
+                }, 1800);
+                renderLeaderboard();
+            }
+
+            function isMobileDevice() {
+                return /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) ||
+                    (window.matchMedia && window.matchMedia('(max-width: 600px)').matches);
+            }
+
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                if (gameRunning && !gamePaused && !gameOver) {
+                    if (key === 'arrowup' || key === 'w') {
+                        e.preventDefault();
+                        if (direction.y !== 1) nextDirection = { x: 0, y: -1 };
+                    } else if (key === 'arrowdown' || key === 's') {
+                        e.preventDefault();
+                        if (direction.y !== -1) nextDirection = { x: 0, y: 1 };
+                    } else if (key === 'arrowleft' || key === 'a') {
+                        e.preventDefault();
+                        if (direction.x !== 1) nextDirection = { x: -1, y: 0 };
+                    } else if (key === 'arrowright' || key === 'd') {
+                        e.preventDefault();
+                        if (direction.x !== -1) nextDirection = { x: 1, y: 0 };
+                    }
+                }
+                if (key === ' ' || key === 'p') {
+                    e.preventDefault();
+                    if (gameRunning && !gameOver) {
+                        togglePause();
+                    }
+                }
+                if (key === 'escape') {
+                    e.preventDefault();
+                    if (gamePaused) {
+                        quitToMenu();
+                    } else if (gameOver) {
+                        quitToMenu();
+                    }
+                    if (!leaderboardModal.classList.contains('hidden')) {
+                        hideLeaderboard();
+                    }
+                }
+                if (key === 'enter' && gameOver && !gameOverOverlay.classList.contains('hidden')) {
+                    e.preventDefault();
+                    saveCurrentScore();
+                }
+            });
+
+            btnStartGame.addEventListener('click', startGame);
+            btnResume.addEventListener('click', resumeGame);
+            btnQuitToMenu.addEventListener('click', quitToMenu);
+            btnPause.addEventListener('click', togglePause);
+            btnSaveScore.addEventListener('click', saveCurrentScore);
+            btnRestart.addEventListener('click', startGame);
+            btnGoMenu.addEventListener('click', quitToMenu);
+            btnShowLeaderboard.addEventListener('click', showLeaderboard);
+            btnCloseLeaderboard.addEventListener('click', hideLeaderboard);
+            btnClearLeaderboard.addEventListener('click', clearLeaderboard);
+
+            leaderboardModal.addEventListener('click', (e) => {
+                if (e.target === leaderboardModal) {
+                    hideLeaderboard();
+                }
+            });
+
+            function handleDpad(dir) {
+                if (!gameRunning || gamePaused || gameOver) return;
+                if (dir === 'up' && direction.y !== 1) nextDirection = { x: 0, y: -1 };
+                if (dir === 'down' && direction.y !== -1) nextDirection = { x: 0, y: 1 };
+                if (dir === 'left' && direction.x !== 1) nextDirection = { x: -1, y: 0 };
+                if (dir === 'right' && direction.x !== -1) nextDirection = { x: 1, y: 0 };
+            }
+            dpadUp.addEventListener('click', () => handleDpad('up'));
+            dpadDown.addEventListener('click', () => handleDpad('down'));
+            dpadLeft.addEventListener('click', () => handleDpad('left'));
+            dpadRight.addEventListener('click', () => handleDpad('right'));
+            [dpadUp, dpadDown, dpadLeft, dpadRight].forEach(btn => {
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const dir = btn.id.replace('dpad', '').toLowerCase();
+                    handleDpad(dir);
+                });
+            });
+
+            let touchStartX = 0;
+            let touchStartY = 0;
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+            canvas.addEventListener('touchend', (e) => {
+                if (!gameRunning || gamePaused || gameOver) return;
+                const dx = (e.changedTouches[0]?.clientX || touchStartX) - touchStartX;
+                const dy = (e.changedTouches[0]?.clientY || touchStartY) - touchStartY;
+                const absDx = Math.abs(dx);
+                const absDy = Math.abs(dy);
+                if (Math.max(absDx, absDy) < 25) return;
+                if (absDx > absDy) {
+                    if (dx > 0 && direction.x !== -1) nextDirection = { x: 1, y: 0 };
+                    else if (dx < 0 && direction.x !== 1) nextDirection = { x: -1, y: 0 };
+                } else {
+                    if (dy > 0 && direction.y !== -1) nextDirection = { x: 0, y: 1 };
+                    else if (dy < 0 && direction.y !== 1) nextDirection = { x: 0, y: -1 };
+                }
+            });
+
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    updateCanvasMetrics();
+                }, 250);
+            });
+
+            function initialSetup() {
+                updateCanvasMetrics();
+                updateBestDisplay();
+                scoreValueEl.textContent = '0';
+                bestScoreValueEl.textContent = getBestScore();
+                menuOverlay.classList.remove('hidden');
+                pauseOverlay.classList.add('hidden');
+                gameOverOverlay.classList.add('hidden');
+                infoBar.style.display = 'none';
+                mobileControls.style.display = 'none';
+                canvasContainer.classList.remove('game-active');
+                gameRunning = false;
+                gamePaused = false;
+                gameOver = false;
+                render(performance.now());
+                animFrameId = requestAnimationFrame(gameLoop);
+            }
+
+            initialSetup();
+        })();
+    </script>
+</body>
+</html>
